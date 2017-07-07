@@ -1,77 +1,56 @@
-package io.gvox.phonecalltrap;
+package wang.imchao.plugin;
 
-import android.content.Context;
-import android.telephony.PhoneStateListener;
-import android.telephony.TelephonyManager;
+import android.util.Log;
+
+import com.pgyersdk.feedback.PgyFeedback;
+import com.pgyersdk.feedback.PgyFeedbackShakeManager;
+import com.pgyersdk.update.PgyUpdateManager;
+
 import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.PluginResult;
+import org.apache.cordova.CordovaWebView;
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
+public class PgyerPlugin extends CordovaPlugin {
+    private static String TAG = "PgyerPlugin";
 
-public class PhoneCallTrap extends CordovaPlugin {
-
-    CallStateListener listener;
-
-    public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
-        prepareListener();
-
-        listener.setCallbackContext(callbackContext);
-
-        return true;
+    @Override
+    public void initialize(final CordovaInterface cordova, CordovaWebView webView) {
+        super.initialize(cordova, webView);
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                PgyUpdateManager.register(cordova.getActivity());
+                Log.i(TAG, "Pgyer update check registered");
+            }
+        });
     }
 
-    private void prepareListener() {
-        if (listener == null) {
-            listener = new CallStateListener();
-            TelephonyManager TelephonyMgr = (TelephonyManager) cordova.getActivity().getSystemService(Context.TELEPHONY_SERVICE);
-            TelephonyMgr.listen(listener, PhoneStateListener.LISTEN_CALL_STATE);
+    @Override
+    public void onResume(boolean multitasking) {
+        super.onResume(multitasking);
+        // 自定义摇一摇的灵敏度，默认为950，数值越小灵敏度越高。
+        PgyFeedbackShakeManager.setShakingThreshold(1000);
+        // 以对话框的形式弹出
+        PgyFeedbackShakeManager.register(cordova.getActivity());
+    }
+
+    @Override
+    public void onPause(boolean multitasking) {
+        super.onPause(multitasking);
+        PgyFeedbackShakeManager.unregister();
+    }
+
+    @Override
+    public boolean execute(String action, JSONArray data, CallbackContext callbackContext) throws JSONException {
+        if (action.equals("showFeedBackBox")) {
+            PgyFeedback.getInstance().showDialog(this.cordova.getActivity());
+            callbackContext.success("");
+            return true;
+        } else {
+            return false;
         }
     }
-}
 
-class CallStateListener extends PhoneStateListener {
-
-    private CallbackContext callbackContext;
-
-    public void setCallbackContext(CallbackContext callbackContext) {
-        this.callbackContext = callbackContext;
-    }
-
-    public void onCallStateChanged(int state, String incomingNumber) {
-        super.onCallStateChanged(state, incomingNumber);
-
-        if (callbackContext == null) return;
-
-        String msg = "";
-
-        switch (state) {
-            case TelephonyManager.CALL_STATE_IDLE:
-                msg = "IDLE";
-                break;
-
-            case TelephonyManager.CALL_STATE_OFFHOOK:
-                msg = "OFFHOOK";
-                break;
-
-            case TelephonyManager.CALL_STATE_RINGING:
-                msg = "RINGING";
-                break;
-        }
-
-        JSONObject r = new JSONObject();
-        try {
-            r.put("state", msg);
-            r.put("incomingNumber", incomingNumber);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-
-        PluginResult result = new PluginResult(PluginResult.Status.OK, r);
-        result.setKeepCallback(true);
-
-        callbackContext.sendPluginResult(result);
-    }
 }
