@@ -37,4 +37,16 @@ public class PgyerPlugin extends CordovaPlugin {
         super.onPause(multitasking);
         PgyFeedbackShakeManager.unregister();
     }
+
+    @Override
+    public boolean execute(String action, JSONArray data, CallbackContext callbackContext) throws JSONException {
+        if (action.equals("showFeedBackBox")) {
+            PgyFeedback.getInstance().showDialog(this.cordova.getActivity());
+            callbackContext.success("");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 }
